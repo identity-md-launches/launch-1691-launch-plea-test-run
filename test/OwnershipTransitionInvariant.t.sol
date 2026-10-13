@@ -88,7 +88,8 @@ contract OwnershipTransitionHandler is Test {
 
     function closePrizes() external {
         if (closed) return;
-        // Only the accepted owner is excluded. A nomination cannot revoke either fixed rank.
+        // Only the accepted owner is excluded (the launch owner too, but this stand-in hook has no
+        // owner). A nomination cannot revoke either fixed rank.
         if (expectedOwner != actors[1]) {
             quotePaid[1] = 25e18;
             bonusPaid[1] = 1_250_000e18;

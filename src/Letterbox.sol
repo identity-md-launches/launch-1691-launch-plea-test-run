@@ -303,7 +303,17 @@ contract Letterbox is ReentrancyGuardTransient {
             if (least > MAX_SELL) least = MAX_SELL;
             if (amount < least) amount = least;
         }
-        _requireWorthTheFee(amount);
+        // The original cleared the 0.70 IMD floor, and the same-share clamp always lands a little
+        // under it (the fee sale's share), so an appeal is raised back to the floor's worth instead
+        // of being refused; never above the original or the gate's 50%. When the price fell so far
+        // that even that is out of reach, the appeal still goes through: the delivery fee is capped
+        // at the sale, so it never eats one.
+        uint256 floorAmount = FullMath.mulDivRoundingUp(MIN_SALE_VALUE, FixedPoint96.Q96, _price());
+        if (amount < floorAmount) {
+            amount = floorAmount < originalAmount ? floorAmount : originalAmount;
+            uint256 half = bal * MAX_SHARE_BPS / BPS;
+            if (amount > half) amount = half;
+        }
         (uint256 feeImd, uint256 maxFeePlea) = feesFor(true);
         // The fees may take 10% of the balance, or up to the appeal's own amount when that is more:
         // whoever could plead by letter (a plea worth at least 0.70 IMD) can always appeal by letter.

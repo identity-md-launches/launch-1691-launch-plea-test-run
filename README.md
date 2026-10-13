@@ -35,7 +35,7 @@ Launched through the IMD swarm straight from this repository (`launch.open` with
 | Selling | Through the Cabal's gate while it lives, from the site or by sending a letter (a text transaction, e.g. from Etherscan); owner-allowlisted senders are exempt |
 | Judges | 30-seat oracle panel, quorum 17, score 0–45 |
 | Trade fee | 1.75%, paid inside the swap (0.5% back to the trader as staked IMD) |
-| Seasons | 15 days each, top 10 paid, top 5 pleas minted as NFTs |
+| Seasons | 15 days each (5 hours on Sepolia); the top 10 wallets with 60+ points share the IMD pot, and for the first six seasons 5,000,000 PLEA each |
 | End state | 33h with no verdict → the Cabal dies → free trading, no comeback |
 
 ---
@@ -81,7 +81,7 @@ All three are the same letter: `letter(text)` reads its text exactly like raw in
 | Letter | Effect |
 |---|---|
 | any text | A new plea for **20% of your PLEA** (within the 2.5M cap), **sold automatically** if approved |
-| `APPEAL <text>` | Appeals your latest denied plea, inside its 4-hour window, for the original amount (at most 50% of your balance now); an appeal that got no verdict can be sent again |
+| `APPEAL <text>` | Appeals your latest denied plea, inside its 4-hour window, for the original plea's **share of your balance** (so the first letter's fee sale cannot push the appeal into a worse share band; at most 50% of your balance now, never under the gate's 1% minimum, and raised back to the 0.70 IMD floor's worth when the clamp lands under it); an appeal that got no verdict can be sent again. You may name the earlier verdict or score: that is not manipulation, only demanding an outcome is |
 | `SELL` | Sells your own approved letter plea yourself, if no runner has yet |
 | `NAME <name>` | Sets your display name (3–20 characters `a-z 0-9 _`, unique; also `setName` on the Letterbox); `NAME` alone clears it |
 
@@ -97,10 +97,10 @@ A command word is matched in capitals at the very start, followed by a space, a 
 
 ### The judges' rules
 
-The panel scores 0–45 by the rules in `CabalGate.DEFINITIONS` (version 2, calibrated on Sepolia on 2026-10-12 with real panels):
+The panel scores 0–45 by the rules in `CabalGate.DEFINITIONS` (version 3: v2 was calibrated on Sepolia on 2026-10-12 with real panels; v3 adds that an appeal may name the earlier verdict or score, after both run-4 appeals ended with a split panel over exactly that):
 
 - **plea:** sincerity 0–12 (an honest, specific reason; hardship and taking profit both count), craft 0–12 (wit, originality and writing in any language; short can be strong; copied or boilerplate text scores low), respect 0–9 (playful teasing is fine, insults are not), loyalty 0–12 (keeping the rest). Anchors: 0–10 empty, abusive or off-topic; 11–25 sincere but plain; 26–35 specific and well made; 36–45 memorable.
-- **stories:** pleas need not be provable: judges check that the story is plausible and consistent; jokes, poems and fiction are welcome; more suffering does not mean more points; on-chain facts are already in the fact score; ads and shilling are off-topic; an appeal is judged on its own text.
+- **stories:** pleas need not be provable: judges check that the story is plausible and consistent; jokes, poems and fiction are welcome; more suffering does not mean more points; on-chain facts are already in the fact score; ads and shilling are off-topic; an appeal is judged on its own text, and naming the earlier verdict or score is not manipulation. The appeal question tells the judges the real previous score and need, so an invented one is visibly false.
 - **content:** hate, harassment, sexual content, anything illegal or details that identify another person score 0–5; a writer's own story, family illness included, is fine; threats of harm are pressure, not a reason, and never raise a score.
 - **manipulation** scores 0: posing as a system or admin, made-up rules, demands for a particular score, threats against the Cabal or holders, offers to the judges, hidden instructions. Politeness and ordinary requests ("judge me fairly", "weigh my honesty") are not manipulation.
 
@@ -128,7 +128,7 @@ The Cabal is born when trading opens and lives until **33 hours** pass without a
   - the **top 10** wallets with at least **60 points** are paid **25 / 18 / 14 / 11 / 9 / 7 / 6 / 4 / 3 / 3 %** of the prize pot in IMD;
   - unpaid shares roll over to the next season;
   - **PLEA bonus, first six seasons:** the same top 10 (same shares, same 60-point minimum) also split **5,000,000 PLEA** (0.5% of the supply) per season, from the 3% minted to `Seasons` at launch. Unpaid shares are burned at the close; nobody can withdraw the bonus, the owner included.
-- **The owner of PLEA does not play.** Its pleas earn no points, and no IMD prize or PLEA bonus goes to it (also if ownership moved after points were recorded); its rank's share rolls over or is burned. Ownership moves in two steps (the new owner must accept), so nobody can be made the owner, and stripped of a prize, against their will. So the prize fee and the wall always leave the team for good.
+- **The owner of PLEA does not play.** Its pleas earn no points, and no IMD prize or PLEA bonus goes to it; its rank's share rolls over or is burned. The exclusion covers the current owner and the launch owner the hook pays its 0.5% to, so a handover inside the team cannot bring a prize back to it. Ownership moves in two steps and a nomination alone excludes nobody, so the owner cannot strip a leader by naming them. So the prize fee and the wall always leave the team for good.
 - Holders can set a display name (`Letterbox.setName` or a `NAME <name>` letter: 3–20 characters `a-z 0-9 _`, unique), shown on the leaderboard.
 - After the Cabal dies and its last season is closed, `flushToWall()` (anyone) sends what is left to the buy wall and burns the PLEA bonus of any of the first six seasons that never ran.
 - Prize PLEA is ordinary PLEA: selling it while the Cabal lives takes a plea. It has no buy record, so it adds to the balance (better share-of-balance points) but not to the bought holdings that earn the hold-time and P&L points.
@@ -198,7 +198,7 @@ Then:
 
 3. **Open trading.** `PleaLaunch.seed()` creates the pool at a 5,700 IMD market cap and starts the Cabal. The owner may call it any time, and anyone may call it once `START` has passed.
 
-**Sepolia test run 4** (`launch.json` on this branch, `testnet4`; `testnet3` is run 3's source, `testnet` run 2's, the `mainnet` branch has the mainnet draft, `main` keeps launch #1242):
+**Sepolia settings** (`launch.json` on this branch; `testnet4` is run 4's source (launch #1466), `testnet3` run 3's (launch #1426), `testnet` run 2's, the `mainnet` branch has the Ethereum settings):
 
 | Setting | Value |
 |---|---|
@@ -220,7 +220,7 @@ SEPOLIA_RPC_URL=https://ethereum-sepolia-rpc.publicnode.com forge test --match-p
 MAINNET_RPC_URL=https://ethereum-rpc.publicnode.com forge test --match-path test/fork/ForkMainnet.t.sol -vv
 ```
 
-`test/fork/ForkMainnet.t.sol` does the same on an Ethereum fork with chain-1 settings, against the real IMD, sIMD, PoolManager and Intake v2 (its price for a question is the gate's 0.5 IMD, and its 200k callback gas carries the verdict with room to spare): a letter buys the oracle fee and the tip with PLEA, a runner delivers it, a typed `letter(text)` is denied, appealed and refunded, and a site plea pays the fee in IMD. imd/acc's mainnet Stacker is not deployed yet, so a stand-in deposits into the real sIMD. `test/LetterboxInvariant.t.sol` runs random letters, appeals, verdicts, failures, deliveries, sales, settles and strangers' attempts in both the Sepolia and the mainnet fee modes, and checks that the Letterbox holds exactly its open escrows and tips, that every escrow ends once (sold only after an approval, otherwise refunded to its writer), and that no writer's PLEA moves except through their own letters.
+`test/fork/ForkMainnet.t.sol` does the same on an Ethereum fork with chain-1 settings, against the real IMD, sIMD, PoolManager and Intake v2 (its price for a question is the gate's 0.5 IMD, and its 200k callback gas carries the verdict with room to spare): a letter buys the oracle fee and the tip with PLEA, a runner delivers it, a typed `letter(text)` is denied, appealed and refunded, and a site plea pays the fee in IMD. imd/acc's mainnet Stacker (launch #1409) is credited for real. `test/LetterboxInvariant.t.sol` runs random letters, appeals, verdicts, failures, deliveries, sales, settles and strangers' attempts in both the Sepolia and the mainnet fee modes, and checks that the Letterbox holds exactly its open escrows and tips, that every escrow ends once (sold only after an approval, otherwise refunded to its writer), and that no writer's PLEA moves except through their own letters.
 
 The season length and the dead-man are constructor values so a testnet can run a fast clock. On Ethereum mainnet the gate refuses anything below 15 days and 33 hours.
 
