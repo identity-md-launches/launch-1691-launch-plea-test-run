@@ -123,6 +123,30 @@ contract JudgeFindingsTest is Fixture {
         assertLe(a.amount * 10_000 / gate.pleaBalance(ap), 2_000, "still in the 20% band");
     }
 
+    /// Run-4 import audit: a site plea at exactly the gate's 1% minimum, denied, settled, then appealed
+    /// with auto-sell: the same-share clamp rounds up so it never lands one wei under the minimum.
+    function test_appealAutoOfAMinimumPleaStaysAtTheMinimum() public {
+        address whale = makeAddr("whale");
+        fund(whale);
+        buy(whale, 500e18);
+        skip(1 days);
+        // The judge's recipe: a balance that is not a multiple of 100 (transfers are gated, so set it).
+        uint256 b = plea.balanceOf(whale);
+        b = b - (b % 100) - 1;
+        deal(address(plea), whale, b);
+        vm.prank(whale);
+        uint256 id = letterbox.plead(b / 100, "Exactly one percent, the smallest plea the gate allows; the rest stays.");
+        require(answer(id, 0), "verdict");
+        letterbox.settle(id);
+        // Shrunk by the fee sale; make it a multiple of 100 so a floored clamp would be one wei short.
+        uint256 bal = plea.balanceOf(whale);
+        deal(address(plea), whale, bal - (bal % 100));
+        vm.prank(whale);
+        uint256 ap = letterbox.appealAuto(id, "Still one percent; the rest still stays.");
+        assertTrue(gate.getPlea(ap).isAppeal);
+        assertGe(gate.getPlea(ap).amount, gate.pleaBalance(ap) / 100, "at least the gate's minimum");
+    }
+
     /// Finding 2: a writer worth a few IMD can plead by letter and then appeal by letter.
     function test_aSmallWriterCanAppealByLetter() public {
         buy(smallHolder, 5e18);
