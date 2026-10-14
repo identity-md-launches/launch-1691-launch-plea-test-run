@@ -743,7 +743,7 @@ contract CabalGate is OracleAttestationConsumer {
     }
 
     /// @dev 1-280 bytes of well-formed UTF-8 with no control, zero-width, Bidi_Control, tag or
-    /// variation-selector characters, and no [PLEA or [/PLEA marker.
+    /// variation-selector characters, and no [PLEA, [/PLEA, [OBJECTION or [/OBJECTION marker.
     function _validateText(string calldata text) internal pure {
         bytes calldata b = bytes(text);
         uint256 n = b.length;
@@ -816,6 +816,14 @@ contract CabalGate is OracleAttestationConsumer {
                 (_at(b, j) | 0x20) == 0x70 && (_at(b, j + 1) | 0x20) == 0x6c && (_at(b, j + 2) | 0x20) == 0x65
                     && (_at(b, j + 3) | 0x20) == 0x61
             ) revert BadPleaText(); // "plea", any case
+            // The Tribunal quotes this question verbatim, so a plea must not forge its markers.
+            if (j + 9 <= n) {
+                bytes32 word;
+                assembly ("memory-safe") {
+                    word := calldataload(add(b.offset, j))
+                }
+                if ((bytes9(word) | bytes9(0x202020202020202020)) == bytes9("objection")) revert BadPleaText();
+            }
         }
     }
 }

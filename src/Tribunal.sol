@@ -22,6 +22,7 @@ interface ISeasonsForTribunal {
     function recorded(uint256 pleaId) external view returns (bool);
     function excluded(address wallet) external view returns (bool);
     function checkpoint() external;
+    function checkpointObjection(uint256 pleaId, uint256 amount) external;
 }
 
 interface IMintableFee {
@@ -341,7 +342,7 @@ contract Tribunal is OracleAttestationConsumer, ReentrancyGuardTransient {
     }
 
     /// @notice Pays a decided objection's stake once: to the objector when sustained or void, to the
-    /// season's prize pot when overruled.
+    /// plea's season prize pot when overruled (rollover if that season has already closed).
     function settle(uint256 id) external nonReentrant {
         Objection storage o = objections[id];
         if (o.ruling == Ruling.None || o.ruling == Ruling.Pending) revert NotRuled(id);
@@ -349,7 +350,7 @@ contract Tribunal is OracleAttestationConsumer, ReentrancyGuardTransient {
         o.settled = true;
         address to = o.ruling == Ruling.Overruled ? address(seasons) : o.objector;
         imd.safeTransfer(to, STAKE);
-        if (to == address(seasons)) seasons.checkpoint();
+        if (to == address(seasons)) seasons.checkpointObjection(o.pleaId, STAKE);
         emit StakeSettled(id, to, STAKE);
     }
 

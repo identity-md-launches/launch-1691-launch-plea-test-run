@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.26;
 
+import {ArtifactDeployment} from "../utils/ArtifactDeployment.sol";
+
 import {Test, console2} from "forge-std/Test.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
@@ -103,7 +105,11 @@ contract ForkMainnetTest is Test {
         _deployHook();
         vm.prank(owner);
         launch.seed();
-        router = new BuyRouter(IPoolManager(POOL_MANAGER), hook, IMD, IERC20(address(plea)));
+        router = BuyRouter(
+            ArtifactDeployment.deploy(
+                "Mocks.sol:BuyRouter", abi.encode(IPoolManager(POOL_MANAGER), hook, IMD, IERC20(address(plea)))
+            )
+        );
         for (uint256 i; i < 3; ++i) {
             address a = makeAddr(string.concat("m", vm.toString(i)));
             w.push(a);
@@ -122,34 +128,48 @@ contract ForkMainnetTest is Test {
     }
 
     function _deploy() internal {
-        plea = new PLEA(owner);
-        gate = new CabalGate(
-            address(plea), address(INTAKE), address(IMD), address(IMD), vm.addr(SIGNER_KEY), SEASON, DEADMAN
+        plea = PLEA(ArtifactDeployment.deploy("PLEA.sol:PLEA", abi.encode(owner)));
+        gate = CabalGate(
+            ArtifactDeployment.deploy(
+                "CabalGate.sol:CabalGate",
+                abi.encode(
+                    address(plea), address(INTAKE), address(IMD), address(IMD), vm.addr(SIGNER_KEY), SEASON, DEADMAN
+                )
+            )
         );
-        seasons = new Seasons(address(plea), address(gate), address(IMD));
-        PleaDistributor distributor = new PleaDistributor(address(plea), owner);
-        launch = new PleaLaunch(
-            address(plea),
-            address(gate),
-            address(seasons),
-            address(distributor),
-            POOL_MANAGER,
-            address(IMD),
-            address(stacker),
-            CREDIT_GAS,
-            block.timestamp + 7 days,
-            address(IMD),
-            false,
-            keccak256(type(Letterbox).creationCode),
-            keccak256(type(Tribunal).creationCode)
+        seasons = Seasons(
+            ArtifactDeployment.deploy("Seasons.sol:Seasons", abi.encode(address(plea), address(gate), address(IMD)))
+        );
+        PleaDistributor distributor = PleaDistributor(
+            ArtifactDeployment.deploy("PleaDistributor.sol:PleaDistributor", abi.encode(address(plea), owner))
+        );
+        launch = PleaLaunch(
+            ArtifactDeployment.deploy(
+                "PleaLaunch.sol:PleaLaunch",
+                abi.encode(
+                    address(plea),
+                    address(gate),
+                    address(seasons),
+                    address(distributor),
+                    POOL_MANAGER,
+                    address(IMD),
+                    address(stacker),
+                    CREDIT_GAS,
+                    block.timestamp + 7 days,
+                    address(IMD),
+                    false,
+                    keccak256(vm.getCode("Letterbox.sol:Letterbox")),
+                    keccak256(vm.getCode("Tribunal.sol:Tribunal"))
+                )
+            )
         );
         // After the launch transaction: anyone deploys the committed Letterbox.
-        letterbox = Letterbox(launch.deployLetterbox(type(Letterbox).creationCode));
+        letterbox = Letterbox(launch.deployLetterbox(vm.getCode("Letterbox.sol:Letterbox")));
     }
 
     function _deployHook() internal {
         bytes memory code = abi.encodePacked(
-            type(PleaHook).creationCode,
+            vm.getCode("PleaHook.sol:PleaHook"),
             abi.encode(POOL_MANAGER, address(plea), address(IMD), address(stacker), owner, address(seasons), CREDIT_GAS)
         );
         assertEq(keccak256(code), launch.hookInitCodeHash());

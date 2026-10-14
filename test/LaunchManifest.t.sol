@@ -144,8 +144,8 @@ abstract contract ManifestFixture is Test {
         assertEq(l.START(), START);
         assertEq(l.oracleAsset(), ORACLE_ASSET);
         assertEq(l.mintOracleFee(), MINT_ORACLE_FEE);
-        assertEq(l.letterboxCodeHash(), keccak256(type(Letterbox).creationCode));
-        assertEq(l.tribunalCodeHash(), keccak256(type(Tribunal).creationCode));
+        assertEq(l.letterboxCodeHash(), keccak256(vm.getCode("Letterbox.sol:Letterbox")));
+        assertEq(l.tribunalCodeHash(), keccak256(vm.getCode("Tribunal.sol:Tribunal")));
         assertEq(l.tribunal(), address(0), "the Tribunal is deployed after the launch");
         assertEq(l.hookInitCodeHash(), keccak256(_hookCode()));
         assertEq(p.totalSupply(), 0, "hook deployment must remain a separate step");
@@ -171,6 +171,12 @@ abstract contract ManifestFixture is Test {
 }
 
 contract AtomicManifestTest is ManifestFixture {
+    function test_launchJsonNotesFitTheManifestCap() public view {
+        string memory json = vm.readFile("launch.json");
+        string memory notes = vm.parseJsonString(json, ".notes");
+        assertLe(bytes(notes).length, 4_000, "manifest notes exceed the schema cap");
+    }
+
     /// The five-contract launch in one factory transaction, measured as the chain charges it: the
     /// init codes come in as transaction data (EIP-2028) and execute from memory, plus the real
     /// factory's measured overhead. It must fit under Ethereum's 16,777,216-gas cap even with the
@@ -222,7 +228,9 @@ contract AtomicManifestTest is ManifestFixture {
         string memory json = vm.readFile("launch.json");
         assertEq(vm.parseJsonString(json, ".contracts[4].contract"), "PleaLaunch");
         bytes32 committed = vm.parseBytes32(vm.parseJsonString(json, ".contracts[4].constructorArgs[11]"));
-        assertEq(committed, keccak256(type(Letterbox).creationCode), "update launch.json after changing Letterbox");
+        assertEq(
+            committed, keccak256(vm.getCode("Letterbox.sol:Letterbox")), "update launch.json after changing Letterbox"
+        );
         assertEq(committed, letterboxHash);
     }
 
@@ -230,7 +238,9 @@ contract AtomicManifestTest is ManifestFixture {
     function test_launchJsonCommitsToThisTribunal() public view {
         string memory json = vm.readFile("launch.json");
         bytes32 committed = vm.parseBytes32(vm.parseJsonString(json, ".contracts[4].constructorArgs[12]"));
-        assertEq(committed, keccak256(type(Tribunal).creationCode), "update launch.json after changing Tribunal");
+        assertEq(
+            committed, keccak256(vm.getCode("Tribunal.sol:Tribunal")), "update launch.json after changing Tribunal"
+        );
         assertEq(committed, tribunalHash);
     }
 }

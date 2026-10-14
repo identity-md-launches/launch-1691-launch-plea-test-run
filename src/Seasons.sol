@@ -36,6 +36,8 @@ contract Seasons {
     error OwnerExcluded();
     error Held(uint256 pleaId);
     error ObjectionSustained(uint256 pleaId);
+    error NotTribunal();
+    error UnfundedStake();
 
     event Recorded(uint256 indexed pleaId, uint256 indexed season, address indexed wallet, uint8 score, uint16 points);
     event SeasonClosedOut(uint256 indexed season, uint256 pot, uint256 paid);
@@ -156,6 +158,24 @@ contract Seasons {
         emit PrizeFunded(season, added);
     }
 
+    /// @notice Accounts an overruled stake to the plea's season, even if `settle` is called in a
+    /// later season. Only the committed Tribunal can label a payment this way; it transfers the
+    /// stake first. Closed pots cannot be paid again, so their late stakes become rollover.
+    function checkpointObjection(uint256 pleaId, uint256 amount) external {
+        address tribunal = _tribunal();
+        if (tribunal == address(0) || msg.sender != tribunal) revert NotTribunal();
+        (,, bool approved, uint64 verdictAt) = gate.result(pleaId);
+        if (!approved) revert NotApproved(pleaId);
+        if (pot() - accountedPot < amount) revert UnfundedStake();
+        accountedPot += amount;
+        uint256 season = _seasonOf(verdictAt);
+        if (closed[season]) rollover += amount;
+        else seasonFees[season] += amount;
+        emit PrizeFunded(season, amount);
+        // Any other unaccounted donations still belong to the running season.
+        checkpoint();
+    }
+
     /// @notice True once the Cabal is dead and its last season is closed.
     function finished() public view returns (bool) {
         if (gate.diedAt() == 0) return false;
@@ -186,15 +206,19 @@ contract Seasons {
     /// that reverts can never block a record or a close.
     function _standing(uint256 pleaId) internal view returns (bool held, bool sustained, uint8 lowest) {
         lowest = type(uint8).max;
-        address launcher = plea.launcher();
-        if (launcher == address(0)) return (false, false, lowest);
-        (bool ok, bytes memory ret) = launcher.staticcall(abi.encodeWithSignature("tribunal()"));
-        if (!ok || ret.length != 32) return (false, false, lowest);
-        address t = abi.decode(ret, (address));
+        address t = _tribunal();
         if (t == address(0)) return (false, false, lowest);
-        (ok, ret) = t.staticcall(abi.encodeWithSignature("standing(uint256)", pleaId));
+        (bool ok, bytes memory ret) = t.staticcall(abi.encodeWithSignature("standing(uint256)", pleaId));
         if (!ok || ret.length != 96) return (false, false, lowest);
         return abi.decode(ret, (bool, bool, uint8));
+    }
+
+    function _tribunal() internal view returns (address) {
+        address launcher = plea.launcher();
+        if (launcher == address(0)) return address(0);
+        (bool ok, bytes memory ret) = launcher.staticcall(abi.encodeWithSignature("tribunal()"));
+        if (!ok || ret.length != 32) return address(0);
+        return abi.decode(ret, (address));
     }
 
     function _seasonOf(uint64 verdictAt) internal view returns (uint256) {

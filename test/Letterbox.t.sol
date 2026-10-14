@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.26;
 
+import {ArtifactDeployment} from "./utils/ArtifactDeployment.sol";
+
 import {Fixture} from "./utils/Fixture.sol";
 import {CabalGate} from "../src/CabalGate.sol";
 import {PLEA} from "../src/PLEA.sol";
@@ -630,9 +632,9 @@ contract LetterboxTest is Fixture {
         assertEq(address(letterbox), launch.letterbox());
         assertEq(address(letterbox), launch.predictLetterbox());
         assertEq(plea.letterbox(), address(letterbox));
-        assertEq(launch.letterboxCodeHash(), keccak256(type(Letterbox).creationCode));
+        assertEq(launch.letterboxCodeHash(), keccak256(vm.getCode("Letterbox.sol:Letterbox")));
         vm.expectRevert(PleaLaunch.LetterboxAlreadyDeployed.selector);
-        launch.deployLetterbox(type(Letterbox).creationCode);
+        launch.deployLetterbox(vm.getCode("Letterbox.sol:Letterbox"));
         vm.prank(OWNER);
         vm.expectRevert(PLEA.NotLauncher.selector);
         plea.setLetterbox(alice);
@@ -640,11 +642,11 @@ contract LetterboxTest is Fixture {
 
     function test_deployLetterboxRefusesOtherCode() public {
         PleaLaunch fresh = _freshLaunch();
-        bytes memory other = abi.encodePacked(type(Letterbox).creationCode, uint256(1));
+        bytes memory other = abi.encodePacked(vm.getCode("Letterbox.sol:Letterbox"), uint256(1));
         vm.expectRevert(PleaLaunch.WrongInitCode.selector);
         fresh.deployLetterbox(other);
         vm.prank(makeAddr("anyone"));
-        address lb = fresh.deployLetterbox(type(Letterbox).creationCode);
+        address lb = fresh.deployLetterbox(vm.getCode("Letterbox.sol:Letterbox"));
         assertEq(lb, fresh.predictLetterbox());
         assertEq(fresh.letterbox(), lb);
         assertEq(PLEA(fresh.plea()).letterbox(), lb, "registered by PLEA");
@@ -652,24 +654,37 @@ contract LetterboxTest is Fixture {
 
     /// A second launch's contracts (PLEA, gate, seasons, distributor, PleaLaunch) in one call.
     function _freshLaunch() internal returns (PleaLaunch fresh) {
-        PLEA p = new PLEA(OWNER);
-        CabalGate g = new CabalGate(address(p), address(intake), address(oimd), address(imd), SIGNER, SEASON, DEADMAN);
-        Seasons ss = new Seasons(address(p), address(g), address(imd));
-        PleaDistributor d = new PleaDistributor(address(p), OWNER);
-        fresh = new PleaLaunch(
-            address(p),
-            address(g),
-            address(ss),
-            address(d),
-            address(pm),
-            address(imd),
-            address(stacker),
-            CREDIT_GAS,
-            T0 + 2 days,
-            address(oimd),
-            true,
-            keccak256(type(Letterbox).creationCode),
-            bytes32(0)
+        PLEA p = PLEA(ArtifactDeployment.deploy("PLEA.sol:PLEA", abi.encode(OWNER)));
+        CabalGate g = CabalGate(
+            ArtifactDeployment.deploy(
+                "CabalGate.sol:CabalGate",
+                abi.encode(address(p), address(intake), address(oimd), address(imd), SIGNER, SEASON, DEADMAN)
+            )
+        );
+        Seasons ss =
+            Seasons(ArtifactDeployment.deploy("Seasons.sol:Seasons", abi.encode(address(p), address(g), address(imd))));
+        PleaDistributor d = PleaDistributor(
+            ArtifactDeployment.deploy("PleaDistributor.sol:PleaDistributor", abi.encode(address(p), OWNER))
+        );
+        fresh = PleaLaunch(
+            ArtifactDeployment.deploy(
+                "PleaLaunch.sol:PleaLaunch",
+                abi.encode(
+                    address(p),
+                    address(g),
+                    address(ss),
+                    address(d),
+                    address(pm),
+                    address(imd),
+                    address(stacker),
+                    CREDIT_GAS,
+                    T0 + 2 days,
+                    address(oimd),
+                    true,
+                    keccak256(vm.getCode("Letterbox.sol:Letterbox")),
+                    bytes32(0)
+                )
+            )
         );
     }
 }
@@ -798,6 +813,6 @@ contract LetterboxSettings {
     }
 
     function deploy() external returns (address) {
-        return address(new Letterbox());
+        return address(Letterbox(payable(ArtifactDeployment.deploy("Letterbox.sol:Letterbox", bytes("")))));
     }
 }

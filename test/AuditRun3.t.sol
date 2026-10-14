@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.26;
 
+import {ArtifactDeployment} from "./utils/ArtifactDeployment.sol";
+
 import {Fixture} from "./utils/Fixture.sol";
 import {CabalGate} from "../src/CabalGate.sol";
 import {PLEA} from "../src/PLEA.sol";
@@ -386,6 +388,6 @@ contract FakeLaunch {
     }
 
     function deploy() external returns (address) {
-        return address(new Letterbox());
+        return address(Letterbox(payable(ArtifactDeployment.deploy("Letterbox.sol:Letterbox", bytes("")))));
     }
 }

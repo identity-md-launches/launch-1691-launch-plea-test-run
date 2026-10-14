@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.26;
 
+import {ArtifactDeployment} from "../utils/ArtifactDeployment.sol";
+
 import {Test, console2} from "forge-std/Test.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {PLEA} from "../../src/PLEA.sol";
@@ -106,32 +108,46 @@ contract ForkTestnetTest is Test {
     }
 
     function _deploy() internal {
-        plea = new PLEA(owner);
-        gate = new CabalGate(address(plea), INTAKE, ORACLE_IMD, address(IMD), vm.addr(SIGNER_KEY), SEASON, DEADMAN);
-        seasons = new Seasons(address(plea), address(gate), address(IMD));
-        PleaDistributor distributor = new PleaDistributor(address(plea), owner);
-        launch = new PleaLaunch(
-            address(plea),
-            address(gate),
-            address(seasons),
-            address(distributor),
-            POOL_MANAGER,
-            address(IMD),
-            STACKER,
-            CREDIT_GAS,
-            START,
-            ORACLE_IMD,
-            true,
-            keccak256(type(Letterbox).creationCode),
-            keccak256(type(Tribunal).creationCode)
+        plea = PLEA(ArtifactDeployment.deploy("PLEA.sol:PLEA", abi.encode(owner)));
+        gate = CabalGate(
+            ArtifactDeployment.deploy(
+                "CabalGate.sol:CabalGate",
+                abi.encode(address(plea), INTAKE, ORACLE_IMD, address(IMD), vm.addr(SIGNER_KEY), SEASON, DEADMAN)
+            )
+        );
+        seasons = Seasons(
+            ArtifactDeployment.deploy("Seasons.sol:Seasons", abi.encode(address(plea), address(gate), address(IMD)))
+        );
+        PleaDistributor distributor = PleaDistributor(
+            ArtifactDeployment.deploy("PleaDistributor.sol:PleaDistributor", abi.encode(address(plea), owner))
+        );
+        launch = PleaLaunch(
+            ArtifactDeployment.deploy(
+                "PleaLaunch.sol:PleaLaunch",
+                abi.encode(
+                    address(plea),
+                    address(gate),
+                    address(seasons),
+                    address(distributor),
+                    POOL_MANAGER,
+                    address(IMD),
+                    STACKER,
+                    CREDIT_GAS,
+                    START,
+                    ORACLE_IMD,
+                    true,
+                    keccak256(vm.getCode("Letterbox.sol:Letterbox")),
+                    keccak256(vm.getCode("Tribunal.sol:Tribunal"))
+                )
+            )
         );
         // After the launch transaction: anyone deploys the committed Letterbox.
-        letterbox = Letterbox(launch.deployLetterbox(type(Letterbox).creationCode));
+        letterbox = Letterbox(launch.deployLetterbox(vm.getCode("Letterbox.sol:Letterbox")));
     }
 
     function _deployHook() internal {
         bytes memory code = abi.encodePacked(
-            type(PleaHook).creationCode,
+            vm.getCode("PleaHook.sol:PleaHook"),
             abi.encode(POOL_MANAGER, address(plea), address(IMD), STACKER, owner, address(seasons), CREDIT_GAS)
         );
         bytes32 h = keccak256(code);
@@ -714,7 +730,7 @@ contract ForkTestnetTest is Test {
     /// own domain, the stake goes to the season pot, and the points wait for the window. A second
     /// objection the panel cannot answer is void and its stake comes back.
     function test_objectionThroughTheLiveIntake() public {
-        Tribunal tribunal = Tribunal(launch.deployTribunal(type(Tribunal).creationCode));
+        Tribunal tribunal = Tribunal(launch.deployTribunal(vm.getCode("Tribunal.sol:Tribunal")));
         assertEq(address(tribunal), launch.predictTribunal());
         assertEq(address(tribunal.intake()), INTAKE);
         address a = w[1];
@@ -735,7 +751,8 @@ contract ForkTestnetTest is Test {
         vm.startPrank(b);
         IMD.approve(address(tribunal), type(uint256).max);
         g = gasleft();
-        uint256 oid = tribunal.object(id, "Three lines of boilerplate: the same rent story every wallet tells this week.");
+        uint256 oid =
+            tribunal.object(id, "Three lines of boilerplate: the same rent story every wallet tells this week.");
         emit log_named_uint("object gas", g - gasleft());
         vm.stopPrank();
         assertEq(stakeBefore - IMD.balanceOf(b), 0.35e18, "stake in pool IMD");
